@@ -351,7 +351,7 @@ class newPttImgurFix extends PttImgurFix {
             return `<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" data-src="//www.youtube.com/embed/${info.id}${this.config.youtubeParameters?`?${this.config.youtubeParameters}`:''}" frameborder="0" allowfullscreen></iframe></div></div>`;
         }
         if (info.type == "image") {
-            return this.createImgAndLink(`${info.url}"`);
+            return this.createImgAndLink(`${info.url}`);
         }
         if (info.type == "twitter") {
             return this.createImgAndLink(`//pbs.twimg.com/media/${info.id}:orig`);
