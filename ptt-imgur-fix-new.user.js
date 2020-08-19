@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        PTT Imgur Fix
+// @name        PTT Imgur Fix (修正版)
 // @description	修正 Imgur 在 PTT 上的問題
 // @namespace   eight04.blogspot.com
 // @include     https://www.ptt.cc/bbs/*.html
@@ -250,16 +250,16 @@ class PttImgurFix {
 
     createEmbed(info, container){
         if (info.type == "imgur") {
-            return `<img referrerpolicy="no-referrer" data-src="//i.imgur.com/${info.id}.jpg">`;
+            return `<img referrerpolicy="no-referrer" data-src="https://i.imgur.com/${info.id}.jpg">`;
         }
         if (info.type == "youtube") {
-            return `<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" data-src="//www.youtube.com/embed/${info.id}${this.config.youtubeParameters?`?${this.config.youtubeParameters}`:''}" frameborder="0" allowfullscreen></iframe></div></div>`;
+            return `<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" data-src="https://www.youtube.com/embed/${info.id}${this.config.youtubeParameters?`?${this.config.youtubeParameters}`:''}" frameborder="0" allowfullscreen></iframe></div></div>`;
         }
         if (info.type == "image") {
             return `<img referrerpolicy="no-referrer" data-src="${info.url}">`;
         }
         if (info.type == "twitter") {
-            return `<img data-src="//pbs.twimg.com/media/${info.id}:orig">`;
+            return `<img data-src="https://pbs.twimg.com/media/${info.id}:orig">`;
         }
         if (info.type == "imgur-album") {
             let albumMaxSize = this.config.albumMaxSize
@@ -289,7 +289,7 @@ class PttImgurFix {
                     const loadImages = (count = Infinity) => {
                         let html = "";
                         for (; i < hashes.length && count--; i++) {
-                            html += `<div class="richcontent"><img referrerpolicy="no-referrer" src="//i.imgur.com/${hashes[i]}.jpg"></div>`;
+                            html += `<div class="richcontent"><img referrerpolicy="no-referrer" src="https://i.imgur.com/${hashes[i]}.jpg"></div>`;
                         }
                         container.insertAdjacentHTML("beforeend", html);
                     };
@@ -327,15 +327,21 @@ class newPttImgurFix extends PttImgurFix {
     }
 
     //new
-    createImgAndLink(url){
-        let imgElem = document.createElement("img");
-        imgElem.setAttribute("referrerpolicy", "no-referrer");
-        imgElem.dataset.src = url;
+    createImgAndLink(img_url, img_url_orig = null){
+        if(img_url_orig === null){ //如果沒有原始大圖
+            img_url_orig = img_url;
+        }
 
+        //連結到原始大圖
         let linkElem = document.createElement("a");
         linkElem.setAttribute("referrerpolicy", "no-referrer");
-        linkElem.href = url;
+        linkElem.href = img_url_orig;
         linkElem.setAttribute("target", "_blank");
+
+        //預覽小圖
+        let imgElem = document.createElement("img");
+        imgElem.setAttribute("referrerpolicy", "no-referrer");
+        imgElem.dataset.src = img_url;
 
         linkElem.appendChild(imgElem);
 
@@ -343,20 +349,53 @@ class newPttImgurFix extends PttImgurFix {
     }
 
     //override
+    setupLazyLoad(target){
+        let iObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach((entry) => {
+                //console.log(this);
+                let entry_img = entry.target;
+                if (entry.isIntersecting) {
+                    entry_img.src = entry_img.dataset.src;
+
+                    observer.disconnect();
+                } else {
+                    let {offsetWidth, offsetHeight} = entry_img;
+                    if (offsetWidth) {
+                        entry_img.style.width = offsetWidth + "px";
+                        entry_img.style.height = offsetHeight + "px";
+                    }
+                    //target.src = "";
+                }
+            });
+        });
+        iObserver.observe(target);
+    }
+
+    //override
     createEmbed(info, container){
         if (info.type == "imgur") {
-            return this.createImgAndLink(`//i.imgur.com/${info.id}.jpg`);
+            return this.createImgAndLink(`https://i.imgur.com/${info.id}.jpg`);
         }
         if (info.type == "youtube") {
-            return `<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" data-src="//www.youtube.com/embed/${info.id}${this.config.youtubeParameters?`?${this.config.youtubeParameters}`:''}" frameborder="0" allowfullscreen></iframe></div></div>`;
+            return `<div class="resize-container"><div class="resize-content"><iframe class="youtube-player" type="text/html" data-src="https://www.youtube.com/embed/${info.id}${this.config.youtubeParameters?`?${this.config.youtubeParameters}`:''}" frameborder="0" allowfullscreen></iframe></div></div>`;
         }
         if (info.type == "image") {
             return this.createImgAndLink(`${info.url}`);
         }
         if (info.type == "twitter") {
-            return this.createImgAndLink(`//pbs.twimg.com/media/${info.id}:orig`);
+            // 2020/08/18新寫法
+            let twitter_img_id_regex = new RegExp(/^(.*?)\.(jpg|jpeg|gif|png)$/i);
+            let new_twitter_img_orig_link = info.id.toString().match(twitter_img_id_regex);
+            if(new_twitter_img_orig_link !== null){
+                //外部連結使用原始大圖
+                //return `<a href="https://pbs.twimg.com/media/${new_twitter_img_orig_link[1]}?format=${new_twitter_img_orig_link[2]}&name=orig" target="_blank" referrerpolicy="no-referrer"><img referrerpolicy="no-referrer" data-src="https://pbs.twimg.com/media/${info.id}"></a>`;
+                return this.createImgAndLink(`https://pbs.twimg.com/media/${info.id}`, `https://pbs.twimg.com/media/${new_twitter_img_orig_link[1]}?format=${new_twitter_img_orig_link[2]}&name=orig`);
+            }else{
+                //return this.createImgAndLink(`//pbs.twimg.com/media/${info.id}:orig`); // ":orig"在2020/7/14失效
+                return this.createImgAndLink(`https://pbs.twimg.com/media/${info.id}`);
+            }
         }
-        if (info.type == "imgur-album") {
+        if (info.type == "imgur-album") { //沒看過人貼過這個,不確定能不能用
             let albumMaxSize = this.config.albumMaxSize;
 
             container.textContent = "Loading album...";
@@ -384,7 +423,7 @@ class newPttImgurFix extends PttImgurFix {
                     const loadImages = (count = Infinity) => {
                         let html = "";
                         for (; i < hashes.length && count--; i++) {
-                            html += `<div class="richcontent"><img referrerpolicy="no-referrer" src="//i.imgur.com/${hashes[i]}.jpg"></div>`;
+                            html += `<div class="richcontent"><img referrerpolicy="no-referrer" src="https://i.imgur.com/${hashes[i]}.jpg"></div>`;
                         }
                         container.insertAdjacentHTML("beforeend", html);
                     };
